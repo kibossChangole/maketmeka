@@ -2,6 +2,7 @@ import type { Candle } from '../App';
 import type { DrawingItem } from '../drawings/types';
 import { detectRanges } from './rangeDetector';
 import { detectFairValueGaps, detectImpulseLeg } from './fvgDetector';
+import { detectKeyLevels } from './keyLevelDetector';
 import type { StrategyAnalysisResult, DetectedRange } from './types';
 
 /**
@@ -36,8 +37,30 @@ export function rangeToDrawingItem(range: DetectedRange): DrawingItem {
   };
 }
 
+export function keyLevelToDrawingItem(
+  level: import('./keyLevelDetector').KeyLevel,
+  firstTime: number,
+  lastTime: number,
+  precision = 5
+): DrawingItem {
+  // Simple dotted line that isn't too distracting
+  const color = level.type === 'resistance' ? '#f43f5e' : '#10b981';
+  const fibTag = level.fibAligned ? ' · Fib' : '';
+  const typeTag = level.type === 'resistance' ? 'Rev Res' : 'Rev Sup';
+
+  return {
+    id: `auto_keylevel_${level.id}`,
+    type: 'keyLevel',
+    p1: { time: firstTime, price: level.price },
+    p2: { time: lastTime, price: level.price },
+    color,
+    label: `${typeTag} ${level.price.toFixed(precision)}${fibTag}`,
+  };
+}
+
 /**
  * Analyzes market data for a single chart pane according to Strategy A and Strategy B.
+ * Also computes key horizontal levels for higher-timeframe reversal context.
  */
 export function analyzeChartMarket(
   symbol: string,
@@ -59,6 +82,7 @@ export function analyzeChartMarket(
       primaryRange: null,
       activeImpulse: null,
       unmitigatedFVGs: [],
+      keyLevels: [],
       suggestedDrawings: [],
       statusMessage: 'Insufficient candle data loaded for analysis (minimum 20 required).',
     };
@@ -73,11 +97,31 @@ export function analyzeChartMarket(
   const unmitigatedFVGs = allFVGs.filter((f) => !f.mitigated).slice(-4);
   const activeImpulse = detectImpulseLeg(candles);
 
-  // Generate suggested drawings (range rectangles)
-  // Only plot the primary active range to keep the chart clean, crisp, and focused
+  // Key Levels: historically significant horizontal reversal zones (averages of highs/lows)
+  // Mostly derived and prominent on higher timeframes (1h, 2h, 4h) with Fibonacci confirmation
+  const keyLevels = detectKeyLevels(candles, timeframeSeconds);
+
+  // Generate suggested drawings
   const suggestedDrawings: DrawingItem[] = [];
   if (primaryRange) {
     suggestedDrawings.push(rangeToDrawingItem(primaryRange));
+  }
+
+  // Potential reversal points: mostly derived on higher timeframes (1h, 2h, 4h)
+  const isHTF = timeframeSeconds >= 3600;
+  const maxLevelsToPlot = isHTF ? 4 : 2;
+
+  // Prioritize Fibonacci-confirmed levels
+  const relevantLevels = keyLevels
+    .filter((lvl) => isHTF || lvl.fibAligned)
+    .slice(0, maxLevelsToPlot);
+
+  if (relevantLevels.length > 0 && candles.length > 0) {
+    const firstTime = Number(candles[0].time);
+    const lastTime = Number(candles[candles.length - 1].time);
+    for (const kl of relevantLevels) {
+      suggestedDrawings.push(keyLevelToDrawingItem(kl, firstTime, lastTime, precision));
+    }
   }
 
   let statusMessage = '';
@@ -97,6 +141,7 @@ export function analyzeChartMarket(
     primaryRange,
     activeImpulse,
     unmitigatedFVGs,
+    keyLevels,
     suggestedDrawings,
     statusMessage,
   };

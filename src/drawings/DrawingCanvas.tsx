@@ -239,6 +239,36 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
           ctx.fillStyle = level.color;
           ctx.fillText(labelText, xEnd + 6, y + 3);
         });
+      } else if (item.type === 'keyLevel') {
+        // Simple subtle dotted line for historical reversal levels
+        const y = series.priceToCoordinate(item.p1.price);
+        if (y !== null) {
+          ctx.beginPath();
+          ctx.setLineDash([3, 4]); // Simple dotted line that isn't too distracting
+          ctx.strokeStyle = item.color;
+          ctx.lineWidth = isSelected ? 2 : isHovered ? 1.5 : 1;
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          if (item.label) {
+            ctx.save();
+            ctx.font = '500 9px "Inter", sans-serif';
+            const textWidth = ctx.measureText(item.label).width;
+            const badgeX = Math.max(8, width - textWidth - 16);
+            const badgeY = y - 14 < 6 ? y + 4 : y - 14;
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+            ctx.fillRect(badgeX - 4, badgeY, textWidth + 8, 14);
+            ctx.strokeStyle = hexToRgba(item.color, 0.4);
+            ctx.lineWidth = 1;
+            ctx.strokeRect(badgeX - 4, badgeY, textWidth + 8, 14);
+            ctx.fillStyle = item.color;
+            ctx.fillText(item.label, badgeX, badgeY + 10);
+            ctx.restore();
+          }
+        }
       }
 
       // Draw anchor handles if selected or hovered
@@ -500,6 +530,13 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
             }
           }
           if (hitFiboLine) {
+            foundDrawingId = item.id;
+            foundHandle = 'body';
+            break;
+          }
+        } else if (item.type === 'keyLevel') {
+          const y = series?.priceToCoordinate(item.p1.price);
+          if (y != null && Math.abs(mouseY - y) <= 6) {
             foundDrawingId = item.id;
             foundHandle = 'body';
             break;

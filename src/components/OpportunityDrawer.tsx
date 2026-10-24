@@ -174,6 +174,23 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                     ))}
                   </div>
                 )}
+
+                {/* Key Reversal Levels (HTF averages of highs/lows + Fib confirmed) */}
+                {res.keyLevels && res.keyLevels.length > 0 && (
+                  <div className="key-levels-row">
+                    <span className="key-levels-label">Reversals (HTF/Fib):</span>
+                    {res.keyLevels.slice(0, 4).map((kl) => (
+                      <span
+                        key={kl.id}
+                        className={`key-level-chip ${kl.type} ${kl.fibAligned ? 'fib-tagged' : ''}`}
+                        title={`${kl.strength} touches · ${kl.fibAligned ? 'Fibonacci aligned' : 'Swing average'}`}
+                      >
+                        {kl.type === 'resistance' ? 'Rev Res' : 'Rev Sup'} {kl.price.toFixed(5)}
+                        {kl.fibAligned && <span className="fib-badge">Fib</span>}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })

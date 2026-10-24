@@ -1305,6 +1305,58 @@ button:focus-visible, input:focus-visible {
   color: #f87171;
 }
 
+.key-levels-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.key-levels-label {
+  font-size: 9px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.key-level-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-family: 'DM Mono', monospace;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px dashed rgba(148, 163, 184, 0.3);
+}
+
+.key-level-chip.resistance {
+  color: #fb7185;
+  border-color: rgba(251, 113, 133, 0.4);
+  background: rgba(251, 113, 133, 0.08);
+}
+
+.key-level-chip.support {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.4);
+  background: rgba(52, 211, 153, 0.08);
+}
+
+.key-level-chip.fib-tagged {
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.15);
+}
+
+.fib-badge {
+  font-size: 8px;
+  padding: 0 3px;
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
 .text-accent { color: #38bdf8; }
 .text-bullish { color: #22c98a; }
 .text-bearish { color: #f0526b; }

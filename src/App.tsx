@@ -49,6 +49,8 @@ export const TIMEFRAMES: Tf[] = [
   { label: '15m', seconds: 900 },
   { label: '30m', seconds: 1800 },
   { label: '1h', seconds: 3600 },
+  { label: '2h', seconds: 7200 },
+  { label: '4h', seconds: 14400 },
 ];
 
 export const FALLBACK_FOREX: DerivSymbol[] = [
@@ -180,8 +182,8 @@ function ChartPane({
     onAnalysisResult(id, res);
 
     setDrawings((prev) => {
-      // Keep manual user drawings, clear or replace previously auto-detected ranges
-      const manualOnly = prev.filter((d) => !d.id.startsWith('auto_range_'));
+      // Keep manual user drawings, clear or replace previously auto-detected ranges & reversal levels
+      const manualOnly = prev.filter((d) => !d.id.startsWith('auto_'));
       const next = res.suggestedDrawings.length > 0 ? [...manualOnly, ...res.suggestedDrawings] : manualOnly;
       saveDrawings(symbol, next);
       return next;
@@ -203,7 +205,7 @@ function ChartPane({
     if (clearAnalysisSeq > prevClearRef.current) {
       prevClearRef.current = clearAnalysisSeq;
       setDrawings((prev) => {
-        const manualOnly = prev.filter((d) => !d.id.startsWith('auto_range_'));
+        const manualOnly = prev.filter((d) => !d.id.startsWith('auto_'));
         saveDrawings(symbol, manualOnly);
         return manualOnly;
       });
@@ -218,6 +220,21 @@ function ChartPane({
     setActiveTool('cursor');
     setActiveAnalysis(null);
   }, [symbol, timeframe]);
+
+  // Auto-run analysis every time a fresh batch of history candles is loaded.
+  // This fires on the initial load AND whenever timeframe/symbol changes reconnects and fetches new history.
+  const prevHistoryLoadedRef = useRef(false);
+  useEffect(() => {
+    if (historyLoaded && !prevHistoryLoadedRef.current) {
+      prevHistoryLoadedRef.current = true;
+      // Small delay to let React commit the fresh candles to candlesRef
+      const timer = window.setTimeout(() => runAnalysis(), 150);
+      return () => window.clearTimeout(timer);
+    }
+    if (!historyLoaded) {
+      prevHistoryLoadedRef.current = false;
+    }
+  }, [historyLoaded, runAnalysis]);
 
   const handleDrawingsChange = useCallback((next: DrawingItem[]) => {
     setDrawings(next);

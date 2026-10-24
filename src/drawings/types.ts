@@ -1,6 +1,6 @@
 export type ActiveTool = 'cursor' | 'line' | 'rectangle' | 'fibonacci';
 
-export type DrawingType = 'line' | 'rectangle' | 'fibonacci';
+export type DrawingType = 'line' | 'rectangle' | 'fibonacci' | 'keyLevel';
 
 export interface ChartPoint {
   time: number; // Unix epoch in seconds

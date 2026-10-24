@@ -1,4 +1,5 @@
 import type { DrawingItem } from '../drawings/types';
+import type { KeyLevel } from './keyLevelDetector';
 
 export type BreakoutState =
   | 'inside'
@@ -67,6 +68,7 @@ export interface StrategyAnalysisResult {
   primaryRange: DetectedRange | null;
   activeImpulse: ImpulseLeg | null;
   unmitigatedFVGs: FairValueGap[];
+  keyLevels: KeyLevel[];
   suggestedDrawings: DrawingItem[];
   statusMessage: string;
 }
