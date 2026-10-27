@@ -7,6 +7,7 @@ import {
   FIBO_LEVELS,
 } from './types';
 import type { Candle } from '../App';
+import type { TrendOverlay } from '../strategy/trendDetector';
 
 interface DrawingCanvasProps {
   chart: IChartApi | null;
@@ -21,6 +22,9 @@ interface DrawingCanvasProps {
   onDrawingsChange: (drawings: DrawingItem[]) => void;
   selectedId: string | null;
   onSelectDrawing: (id: string | null) => void;
+  /** Optional trend continuation overlay shown on confirmed breakout */
+  trendOverlay?: TrendOverlay | null;
+  showTrendOverlay?: boolean;
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -57,6 +61,8 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   onDrawingsChange,
   selectedId,
   onSelectDrawing,
+  trendOverlay,
+  showTrendOverlay = true,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
@@ -349,8 +355,119 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       }
     }
 
+    // ─── Trend Continuation Overlay ───────────────────────────────────────
+    // Rendered on top of everything when a confirmed breakout is detected.
+    if (trendOverlay && showTrendOverlay) {
+      ctx.save();
+
+      const isBull = trendOverlay.direction === 'bullish';
+      const trendColor = isBull ? 'rgba(52,211,153,0.85)' : 'rgba(251,113,133,0.85)';
+      const trendColorFaint = isBull ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)';
+
+      // ── 1. Fibonacci retracement zones (thin horizontal dotted lines) ──
+      for (const zone of trendOverlay.fibZones) {
+        const y = series.priceToCoordinate(zone.price);
+        if (y === null) continue;
+
+        ctx.beginPath();
+        ctx.setLineDash([2, 5]);
+        ctx.lineWidth = 0.8;
+        ctx.strokeStyle = zone.color;
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Small label on right edge
+        ctx.font = '8px "DM Mono", monospace';
+        ctx.fillStyle = zone.color;
+        const fibLabel = `${zone.label} · ${zone.price.toFixed(precision)}`;
+        ctx.fillText(fibLabel, width - ctx.measureText(fibLabel).width - 6, y - 3);
+      }
+
+      // ── 2. Continuation target dotted horizontal ──
+      const targetY = series.priceToCoordinate(trendOverlay.continuationTarget);
+      if (targetY !== null) {
+        ctx.beginPath();
+        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = trendColor;
+        ctx.moveTo(0, targetY);
+        ctx.lineTo(width, targetY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.font = 'bold 8px "Inter", sans-serif';
+        const targetLabel = `Target · ${trendOverlay.continuationTarget.toFixed(precision)}`;
+        const tlWidth = ctx.measureText(targetLabel).width;
+        ctx.fillStyle = 'rgba(15,23,42,0.85)';
+        ctx.fillRect(width - tlWidth - 12, targetY - 13, tlWidth + 8, 13);
+        ctx.fillStyle = trendColor;
+        ctx.fillText(targetLabel, width - tlWidth - 8, targetY - 3);
+      }
+
+      // ── 3. Diagonal trendline (thin, extended to right edge) ──
+      const tlP1 = pointToPixels({ time: trendOverlay.trendlineP1.time, price: trendOverlay.trendlineP1.price });
+      const tlP2 = pointToPixels({ time: trendOverlay.trendlineP2.time, price: trendOverlay.trendlineP2.price });
+
+      if (tlP1 && tlP2) {
+        const slope = (tlP2.y - tlP1.y) / (tlP2.x - tlP1.x || 1);
+        const extendedY = tlP2.y + slope * (width - tlP2.x);
+
+        // Shaded channel fill (very subtle)
+        const channelOffset = Math.abs(tlP2.y - tlP1.y) * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(tlP1.x, tlP1.y - (isBull ? channelOffset : -channelOffset));
+        ctx.lineTo(width, extendedY - (isBull ? channelOffset : -channelOffset));
+        ctx.lineTo(width, extendedY + (isBull ? channelOffset : -channelOffset));
+        ctx.lineTo(tlP1.x, tlP1.y + (isBull ? channelOffset : -channelOffset));
+        ctx.closePath();
+        ctx.fillStyle = trendColorFaint;
+        ctx.fill();
+
+        // Main diagonal trendline
+        ctx.beginPath();
+        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = trendColor;
+        ctx.moveTo(tlP1.x, tlP1.y);
+        ctx.lineTo(width, extendedY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // ── 4. Light dots at each swing point (HH/HL or LH/LL) ──
+      for (const swing of trendOverlay.swings) {
+        const pt = pointToPixels({ time: swing.time, price: swing.price });
+        if (!pt) continue;
+
+        // Outer glow ring
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 5.5, 0, Math.PI * 2);
+        ctx.fillStyle = trendColorFaint;
+        ctx.fill();
+
+        // Inner dot
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = trendColor;
+        ctx.fill();
+
+        // Swing type label just above/below dot
+        ctx.font = 'bold 7.5px "Inter", sans-serif';
+        ctx.fillStyle = trendColor;
+        const labelY = isBull
+          ? (swing.type === 'HH' ? pt.y - 10 : pt.y + 16)
+          : (swing.type === 'LH' ? pt.y - 10 : pt.y + 16);
+        ctx.fillText(swing.type, pt.x - 6, labelY);
+      }
+
+      ctx.restore();
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
     ctx.restore();
-  }, [chart, series, drawings, selectedId, hoveredDrawingId, currentColor, activeTool, precision, pointToPixels]);
+  }, [chart, series, drawings, selectedId, hoveredDrawingId, currentColor, activeTool, precision, pointToPixels, trendOverlay, showTrendOverlay]);
 
   // Hook into chart timescale visible range changes to redraw
   useEffect(() => {

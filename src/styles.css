@@ -510,6 +510,18 @@ button:focus-visible, input:focus-visible {
   border-color: #2b3e55;
 }
 
+.trend-toggle-btn.active {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.18);
+}
+
+.trend-toggle-btn.active:hover {
+  background: rgba(56, 189, 248, 0.22);
+  color: #bae6fd;
+}
+
 /* CHART CONTAINER */
 .pane-chart-container {
   flex: 1;

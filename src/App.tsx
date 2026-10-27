@@ -31,6 +31,7 @@ import { type ActiveTool, type DrawingItem, DRAWING_COLORS } from './drawings/ty
 import { loadDrawings, saveDrawings } from './drawings/storage';
 import { OpportunityDrawer } from './components/OpportunityDrawer';
 import { analyzeChartMarket } from './strategy/strategyEngine';
+import { detectTrendOverlay } from './strategy/trendDetector';
 import type { StrategyAnalysisResult } from './strategy/types';
 
 export type DerivSymbol = {
@@ -158,10 +159,13 @@ function ChartPane({
   const [drawings, setDrawings] = useState<DrawingItem[]>(() => loadDrawings(initialSymbol));
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
   const [activeAnalysis, setActiveAnalysis] = useState<StrategyAnalysisResult | null>(null);
+  const [showTrendOverlay, setShowTrendOverlay] = useState(true);
   const activeAnalysisRef = useRef<StrategyAnalysisResult | null>(null);
   useEffect(() => {
     activeAnalysisRef.current = activeAnalysis;
   }, [activeAnalysis]);
+
+  // (trendOverlay is computed below, after candlesRef is declared)
 
   const chartHostRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -172,6 +176,17 @@ function ChartPane({
   const aliveRef = useRef(true);
   const endpointIndexRef = useRef(0);
   const candlesRef = useRef<Candle[]>([]);
+
+  // Compute trend continuation overlay — only when a confirmed breakout exists.
+  // Placed here (after candlesRef) to avoid TDZ reference error.
+  const trendOverlay = useMemo(() => {
+    const bs = activeAnalysis?.primaryRange?.breakoutState;
+    if (bs !== 'bullish_confirmed' && bs !== 'bearish_confirmed') return null;
+    const direction = bs === 'bullish_confirmed' ? 'bullish' : 'bearish';
+    return detectTrendOverlay(candlesRef.current, timeframe.seconds, direction);
+  // candlesRef.current is intentionally read at memo evaluation time; deps cover the trigger conditions
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeAnalysis, timeframe.seconds]);
 
   // Strategy analysis runner for this chart pane
   const runAnalysis = useCallback(() => {
@@ -613,10 +628,10 @@ function ChartPane({
               title={activeAnalysis.primaryRange.summary}
             >
               {activeAnalysis.primaryRange.breakoutState === 'bullish_confirmed' ? '▲ BULL BREAK (3/3)' :
-               activeAnalysis.primaryRange.breakoutState === 'bearish_confirmed' ? '▼ BEAR BREAK (3/3)' :
-               activeAnalysis.primaryRange.breakoutState === 'bullish_pending' ? '▲ PENDING' :
-               activeAnalysis.primaryRange.breakoutState === 'bearish_pending' ? '▼ PENDING' :
-               '● RANGE-BOUND'}
+                activeAnalysis.primaryRange.breakoutState === 'bearish_confirmed' ? '▼ BEAR BREAK (3/3)' :
+                  activeAnalysis.primaryRange.breakoutState === 'bullish_pending' ? '▲ PENDING' :
+                    activeAnalysis.primaryRange.breakoutState === 'bearish_pending' ? '▼ PENDING' :
+                      '● RANGE-BOUND'}
             </div>
           )}
         </div>
@@ -659,6 +674,16 @@ function ChartPane({
           >
             <RefreshCw size={12} />
           </button>
+          {/* Trend overlay toggle – only show when a breakout is confirmed */}
+          {trendOverlay && (
+            <button
+              className={`pane-icon-btn trend-toggle-btn ${showTrendOverlay ? 'active' : ''}`}
+              onClick={() => setShowTrendOverlay((v) => !v)}
+              title={showTrendOverlay ? 'Hide trend continuation overlay' : 'Show trend continuation overlay'}
+            >
+              <Activity size={12} />
+            </button>
+          )}
           <button
             className="pane-icon-btn"
             onClick={onToggleMaximize}
@@ -687,6 +712,8 @@ function ChartPane({
           onDrawingsChange={handleDrawingsChange}
           selectedId={selectedDrawingId}
           onSelectDrawing={setSelectedDrawingId}
+          trendOverlay={trendOverlay}
+          showTrendOverlay={showTrendOverlay}
         />
 
         {/* Floating Trading Drawing Toolbar */}
@@ -788,7 +815,7 @@ export default function App() {
     { id: 0, initialSymbol: 'frxEURUSD', initialTimeframe: TIMEFRAMES[0] }, // EUR/USD 1m
     { id: 1, initialSymbol: 'frxGBPUSD', initialTimeframe: TIMEFRAMES[1] }, // GBP/USD 5m
     { id: 2, initialSymbol: 'frxUSDJPY', initialTimeframe: TIMEFRAMES[2] }, // USD/JPY 15m
-    { id: 3, initialSymbol: 'frxAUDUSD', initialTimeframe: TIMEFRAMES[0] }, // AUD/USD 1m
+    { id: 3, initialSymbol: 'frxGBPJPY', initialTimeframe: TIMEFRAMES[2] }, // frxGBPJPY 1m
   ], []);
 
   // Fetch full active symbol catalog once from Deriv WebSocket
